@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cashier Simulator - Supermarket Edition</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .font-game {
+            font-family: 'Fredoka', cursive, sans-serif;
+        }
+        
+        /* Conveyor belt animation */
+        .conveyor-belt {
+            background: repeating-linear-gradient(
+                90deg,
+                #1e293b,
+                #1e293b 20px,
+                #0f172a 20px,
+                #0f172a 40px
+            );
+            background-size: 40px 100%;
+        }
+        .conveyor-moving {
+            animation: moveBelt 1s linear infinite;
+        }
+        @keyframes moveBelt {
+            0% { background-position: 0 0; }
+            100% { background-position: 40px 0; }
+        }
+
+        /* Laser scanning effect */
+        @keyframes laserScan {
+            0%, 100% { top: 10%; opacity: 0.2; }
+            50% { top: 90%; opacity: 1; }
+        }
+        .laser-active {
+            animation: laserScan 0.5s infinite ease-in-out;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between overflow-x-hidden">
+
+    <!-- HEADER / HUD BAR -->
+    <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-md px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+            <!-- Game Title & Level -->
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white text-xl shadow-lg shadow-indigo-500/30">
+                    <i class="fa-solid fa-cash-register"></i>
+                </div>
+                <div>
+                    <h1 class="font-game text-lg sm:text-xl font-bold tracking-wide text-white">CASHIER SIMULATOR</h1>
+                    <div class="flex items-center gap-2 text-xs text-indigo-300">
+                        <span>Shift / Tahap <strong id="hud-level" class="text-amber-400">1</strong></span>
+                        <span>•</span>
+                        <span id="hud-shift-progress">Pelanggan 1/3</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Money & Satisfaction Stats -->
+            <div class="flex items-center gap-4 sm:gap-6 bg-slate-950/80 px-4 py-2 rounded-2xl border border-slate-800">
+                <!-- Total Earnings -->
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                        <i class="fa-solid fa-wallet text-sm"></i>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Wang Simpanan</div>
+                        <div id="hud-money" class="text-emerald-400 font-bold font-game text-base sm:text-lg">RM 0.00</div>
+                    </div>
+                </div>
+
+                <div class="w-px h-8 bg-slate-800"></div>
+
+                <!-- Customer Satisfaction Rate -->
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                        <i class="fa-solid fa-face-smile text-sm"></i>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Kepuasan</div>
+                        <div id="hud-satisfaction" class="text-amber-400 font-bold font-game text-base sm:text-lg">100%</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Store & Controls -->
+            <div class="flex items-center gap-2">
+                <button id="btn-open-shop" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-lg transition active:scale-95">
+                    <i class="fa-solid fa-store text-amber-300"></i> Kedai Naiktaraf
+                </button>
+                <button id="btn-sound-toggle" class="bg-slate-800 hover:bg-slate-700 text-slate-300 p-2.5 rounded-xl text-xs transition">
+                    <i class="fa-solid fa-volume-high" id="sound-icon"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN COUNTER GAMEPLAY AREA -->
+    <main class="max-w-7xl mx-auto w-full p-3 sm:p-5 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5">
+        
+        <!-- LEFT & CENTER ZONE: CUSTOMER & COUNTER (7 Cols) -->
+        <div class="lg:col-span-7 flex flex-col gap-4">
+            
+            <!-- CUSTOMER & DIALOG ZONE -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex items-center justify-between relative overflow-hidden min-h-[140px]">
+                <div class="absolute inset-0 opacity-5 flex justify-between pointer-events-none px-8 items-end">
+                    <i class="fa-solid fa-boxes-stacked text-8xl text-white"></i>
+                    <i class="fa-solid fa-store text-8xl text-white"></i>
+                </div>
+
+                <!-- Customer Avatar & Info -->
+                <div class="flex items-center gap-4 z-10">
+                    <div class="relative">
+                        <div id="customer-avatar" class="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-slate-800 border-2 border-indigo-500/40 flex items-center justify-center text-4xl sm:text-5xl shadow-inner transition-transform duration-300">
+                            🧑‍🍳
+                        </div>
+                        <span id="badge-patience" class="absolute -bottom-1 -right-1 bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded-full border border-slate-900 font-bold">Gembira</span>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h2 id="customer-name" class="text-white font-bold text-base sm:text-lg">Pelanggan #1</h2>
+                            <span id="customer-pay-preference" class="hidden text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700">
+                            </span>
+                        </div>
+                        
+                        <!-- Patience Bar -->
+                        <div class="w-36 sm:w-48 bg-slate-950 rounded-full h-2.5 mt-2 overflow-hidden border border-slate-800 p-0.5">
+                            <div id="patience-bar" class="bg-emerald-400 h-full rounded-full transition-all duration-300" style="width: 100%;"></div>
+                        </div>
+
+                        <!-- Speech Dialog -->
+                        <p id="customer-dialog" class="text-xs sm:text-sm text-indigo-200 mt-2 italic font-sans bg-slate-950/70 px-3 py-1.5 rounded-xl border border-slate-800 inline-block">
+                            "Selamat sejahtera! Boleh tolong imbas barang-barang ini?"
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Queue Indicator -->
+                <div class="hidden sm:flex flex-col items-end gap-1.5 z-10">
+                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Barisan Seterusnya</span>
+                    <div class="flex gap-1.5 opacity-60">
+                        <span class="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-sm border border-slate-700">👵</span>
+                        <span class="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-sm border border-slate-700">🧔</span>
+                        <span class="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-sm border border-slate-700">👩</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SCANNING BELT AREA -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between relative min-h-[320px]">
+                
+                <div class="grid grid-cols-12 gap-3 h-48 sm:h-56 relative">
+                    <!-- Conveyor Belt -->
+                    <div class="col-span-7 bg-slate-950 rounded-xl border border-slate-800 relative overflow-hidden flex flex-col justify-between p-2">
+                        <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider z-10 flex items-center gap-1.5">
+                            <i class="fa-solid fa-arrows-left-right text-indigo-400"></i> Talus Sawat (Klik barang untuk imbas)
+                        </div>
+                        
+                        <!-- Items Container -->
+                        <div id="conveyor-belt" class="conveyor-belt conveyor-moving h-32 w-full flex items-center justify-start px-4 gap-4 overflow-x-auto relative rounded-lg border border-slate-800/80">
+                        </div>
+
+                        <div class="text-[10px] text-slate-500 text-right">Tatal horizontal jika barang banyak</div>
+                    </div>
+
+                    <!-- Barcode Scanner Zone -->
+                    <div id="scanner-zone" class="col-span-5 bg-slate-950 rounded-xl border-2 border-indigo-500/30 relative flex flex-col items-center justify-center p-3 text-center shadow-inner group hover:border-indigo-400 transition cursor-pointer">
+                        <div id="scanner-laser" class="absolute w-full h-1 bg-red-500 top-1/2 left-0 opacity-20 transition-all pointer-events-none shadow-[0_0_8px_#ef4444]"></div>
+                        
+                        <div class="w-14 h-14 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-barcode text-3xl text-indigo-400 group-hover:text-red-400 transition-colors"></i>
+                        </div>
+                        <span class="text-xs font-bold text-slate-300 uppercase">Pengimbas Barcode</span>
+                        <span class="text-[10px] text-slate-500 mt-0.5">Klik barang di talus sawat</span>
+                    </div>
+                </div>
+
+                <!-- Status & Payment Method Triggers -->
+                <div class="mt-4 bg-slate-950 border border-slate-800 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div id="payment-status-badge" class="px-3 py-1.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-lg text-xs font-bold flex items-center gap-2">
+                            <i class="fa-solid fa-spinner fa-spin"></i> Mengimbas Barang...
+                        </div>
+                        <div class="text-xs text-slate-400">
+                            Kemajuan: <span id="scanned-count" class="font-bold text-white">0</span>/<span id="total-count" class="font-bold text-white">0</span> barang
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button id="btn-pay-cash" disabled class="opacity-40 cursor-not-allowed bg-slate-800 text-slate-400 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-2 border border-slate-700 transition">
+                            <i class="fa-solid fa-money-bill-wave text-emerald-400"></i> Bayar Tunai
+                        </button>
+                        <button id="btn-pay-card" disabled class="opacity-40 cursor-not-allowed bg-slate-800 text-slate-400 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-2 border border-slate-700 transition">
+                            <i class="fa-solid fa-credit-card text-indigo-400"></i> Kad / PayWave
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- RIGHT PANEL: RECEIPT & REGISTER DRAWER (5 Cols) -->
+        <div class="lg:col-span-5 flex flex-col gap-4">
+            
+            <!-- RECEIPT DISPLAY -->
+            <div class="bg-amber-50/95 text-slate-900 rounded-2xl p-5 shadow-2xl border border-amber-200/50 flex flex-col justify-between relative font-mono">
+                <div class="absolute -top-2 left-0 right-0 h-3 bg-slate-950" style="clip-path: polygon(0% 100%, 5% 0%, 10% 100%, 15% 0%, 20% 100%, 25% 0%, 30% 100%, 35% 0%, 40% 100%, 45% 0%, 50% 100%, 55% 0%, 60% 100%, 65% 0%, 70% 100%, 75% 0%, 80% 100%, 85% 0%, 90% 100%, 95% 0%, 100% 100%);"></div>
+
+                <div>
+                    <div class="text-center pb-3 border-b border-dashed border-slate-400">
+                        <h3 class="font-bold text-base tracking-widest font-sans uppercase">SUPERMARKET MART</h3>
+                        <p class="text-[10px] text-slate-600">Resit Pembelian Pelanggan</p>
+                    </div>
+
+                    <!-- Scanned Items List -->
+                    <div id="receipt-items-list" class="py-3 max-h-36 overflow-y-auto flex flex-col gap-1.5 text-xs">
+                        <div class="text-center text-slate-400 italic py-4">Sila imbas barang di atas kaunter...</div>
+                    </div>
+
+                    <!-- Calculations -->
+                    <div class="pt-3 border-t border-dashed border-slate-400 text-xs flex flex-col gap-1">
+                        <div class="flex justify-between">
+                            <span class="text-slate-600">Subtotal:</span>
+                            <span id="receipt-subtotal" class="font-bold">RM 0.00</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-600">Cukai SST (6%):</span>
+                            <span id="receipt-tax">RM 0.00</span>
+                        </div>
+                        <div class="flex justify-between text-base font-bold text-slate-950 pt-1 border-t border-slate-300">
+                            <span>JUMLAH BESAR:</span>
+                            <span id="receipt-total" class="text-indigo-700">RM 0.00</span>
+                        </div>
+                    </div>
+
+                    <!-- Payment Details Breakdown -->
+                    <div id="receipt-paid-info" class="hidden mt-3 pt-2 border-t border-dashed border-slate-400 text-xs flex flex-col gap-1 bg-amber-100/60 p-2 rounded-lg">
+                        <div class="flex justify-between">
+                            <span id="receipt-paid-label" class="text-slate-600">Wang Diterima:</span>
+                            <span id="receipt-paid-val" class="font-bold">RM 0.00</span>
+                        </div>
+                        <div id="receipt-change-info" class="flex justify-between text-emerald-800 font-bold">
+                            <span>Baki Dipulangkan:</span>
+                            <span id="receipt-change-val">RM 0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-[9px] text-center text-slate-500 mt-4 uppercase tracking-wider">
+                    *** Terima Kasih Sila Datang Lagi ***
+                </div>
+            </div>
+
+            <!-- PAYMENT INTERACTIVE TERMINAL / CASH DRAWER PANEL -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col gap-3">
+                
+                <!-- CARD TERMINAL INTERACTION DISPLAY -->
+                <div id="card-terminal-box" class="hidden flex flex-col items-center justify-center p-4 bg-slate-950 rounded-xl border border-indigo-500/30 text-center gap-3">
+                    <div id="card-status-screen" class="w-full bg-emerald-950/80 text-emerald-400 font-mono py-2.5 px-3 rounded-lg text-xs font-bold border border-emerald-500/30 tracking-wider">
+                        SENTUH KAD BANK DI SINI
+                    </div>
+                    <button id="btn-swipe-card" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg transition active:scale-95">
+                        <i class="fa-solid fa-wifi text-amber-300"></i> Sentuh / Tap Kad PayWave
+                    </button>
+                </div>
+
+                <!-- CASH REGISTER DRAWER DISPLAY -->
+                <div id="cash-drawer-box" class="flex flex-col gap-3">
+                    <div class="flex items-center justify-between bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                        <div>
+                            <div class="text-[10px] text-slate-400 font-bold uppercase">Baki Yang Dipilih</div>
+                            <div id="drawer-selected-display" class="text-emerald-400 font-bold font-game text-lg">RM 0.00</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-[10px] text-slate-400 font-bold uppercase">Baki Diperlukan</div>
+                            <div id="drawer-needed-display" class="text-amber-400 font-bold font-game text-sm">RM 0.00</div>
+                        </div>
+                    </div>
+
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Wang Kertas & Syiling (Klik untuk tambah baki):</div>
+                    <div id="cash-drawer-grid" class="grid grid-cols-4 gap-2">
+                    </div>
+
+                    <!-- Drawer Action Controls -->
+                    <div class="flex gap-2 mt-1">
+                        <button id="btn-clear-drawer" class="w-1/3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2 rounded-xl text-xs transition">
+                            Clear
+                        </button>
+                        <button id="btn-submit-change" disabled class="w-2/3 bg-slate-800 opacity-50 cursor-not-allowed text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-2 transition">
+                            <i class="fa-solid fa-hand-holding-dollar"></i> Serah Baki
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-900 border-t border-slate-800 py-2.5 px-4 text-center text-xs text-slate-500">
+        Cashier Simulator • Kaedah pembayaran (Tunai / Kad) dipilih automatik oleh pelanggan.
+    </footer>
+
+    <!-- MODAL: SHOP -->
+    <div id="modal-shop" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-5 shadow-2xl flex flex-col gap-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-store text-amber-400 text-xl"></i>
+                    <h3 class="font-game font-bold text-lg text-white">Kedai Naiktaraf Peralatan</h3>
+                </div>
+                <button id="btn-close-shop" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <div class="flex flex-col gap-3">
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-bolt"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs font-bold text-white">Pengimbas Barcode Pro</div>
+                            <div class="text-[10px] text-slate-400">Imbas barang secara automatik lebih pantas</div>
+                        </div>
+                    </div>
+                    <button id="buy-auto-scan" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition">
+                        RM 50.00
+                    </button>
+                </div>
+
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-snowflake"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs font-bold text-white">Penghawa Dingin Selesa</div>
+                            <div class="text-[10px] text-slate-400">Pelanggan lebih sabar menunggu barisan</div>
+                        </div>
+                    </div>
+                    <button id="buy-extra-patience" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition">
+                        RM 40.00
+                    </button>
+                </div>
+
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-coins"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs font-bold text-white">Kotak Tip VIP</div>
+                            <div class="text-[10px] text-slate-400">Meningkatkan jumlah tip daripada pelanggan</div>
+                        </div>
+                    </div>
+                    <button id="buy-tip-booster" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition">
+                        RM 65.00
+                    </button>
+                </div>
+            </div>
+
+            <div class="text-right pt-2 border-t border-slate-800">
+                <button id="btn-close-shop-2" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-4 py-2 rounded-xl text-xs">
+                    Tutup Kedai
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: SHIFT SUMMARY -->
+    <div id="modal-summary" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-4 text-center">
+            <div class="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center text-3xl mx-auto border border-emerald-500/30">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+            
+            <div>
+                <h3 id="summary-level-title" class="font-game font-bold text-2xl text-white">Shift Tahap 1 Selesai!</h3>
+                <p class="text-xs text-slate-400 mt-1">Laporan prestasi tugas kasir anda hari ini</p>
+            </div>
+
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col gap-2 text-xs">
+                <div class="flex justify-between text-slate-300">
+                    <span>Pelanggan Dilayani:</span>
+                    <strong id="summary-customers-served" class="text-white">0</strong>
+                </div>
+                <div class="flex justify-between text-slate-300">
+                    <span>Ketepatan Pulangan Baki:</span>
+                    <strong id="summary-accuracy" class="text-emerald-400">100%</strong>
+                </div>
+                <div class="flex justify-between text-slate-300">
+                    <span>Jumlah Tip Terkumpul:</span>
+                    <strong id="summary-tips" class="text-amber-400">RM 0.00</strong>
+                </div>
+                <div class="flex justify-between text-base font-bold text-white pt-2 border-t border-slate-800">
+                    <span>Jumlah Pendapatan:</span>
+                    <strong id="summary-total-revenue" class="text-emerald-400">RM 0.00</strong>
+                </div>
+            </div>
+
+            <button id="btn-next-level" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl text-sm shadow-lg transition active:scale-95">
+                Teruskan Shift Seterusnya <i class="fa-solid fa-arrow-right ml-1"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT GAME LOGIC -->
+    <script>
+        /* SOUND FX SYNTHESIZER (Web Audio API) */
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) this.ctx = new AudioContext();
+                }
+            }
+            playBeep() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1200, this.ctx.currentTime);
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            }
+            playCashRegister() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1400, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.25);
+            }
+            playError() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.3);
+            }
+        }
+        const sfx = new SoundFX();
+
+        /* GROCERY ITEMS DATABASE */
+        const GROCERY_ITEMS = [
+            { id: 'apple', name: 'Epal Merah', price: 2.50, icon: '🍎' },
+            { id: 'milk', name: 'Susu Segar 1L', price: 7.80, icon: '🥛' },
+            { id: 'bread', name: 'Roti Putih', price: 3.40, icon: '🍞' },
+            { id: 'cheese', name: 'Keju Keju', price: 12.00, icon: '🧀' },
+            { id: 'juice', name: 'Jus Oren', price: 6.50, icon: '🧃' },
+            { id: 'chocolate', name: 'Coklat Bar', price: 4.20, icon: '🍫' },
+            { id: 'chicken', name: 'Daging Ayam', price: 15.90, icon: '🍗' },
+            { id: 'chips', name: 'Kerepek', price: 3.80, icon: '🍿' },
+            { id: 'water', name: 'Air Mineral', price: 1.50, icon: '💧' },
+            { id: 'coffee', name: 'Kopi Instant', price: 14.30, icon: '☕' }
+        ];
+
+        /* MALAYSIAN/UNIVERSAL CASH DENOMINATIONS */
+        const CASH_NOTES = [
+            { label: 'RM 100', value: 100.00, color: 'bg-purple-700 hover:bg-purple-600' },
+            { label: 'RM 50', value: 50.00, color: 'bg-teal-700 hover:bg-teal-600' },
+            { label: 'RM 20', value: 20.00, color: 'bg-amber-600 hover:bg-amber-500' },
+            { label: 'RM 10', value: 10.00, color: 'bg-red-700 hover:bg-red-600' },
+            { label: 'RM 5', value: 5.00, color: 'bg-emerald-700 hover:bg-emerald-600' },
+            { label: 'RM 1', value: 1.00, color: 'bg-blue-700 hover:bg-blue-600' },
+            { label: '50 sen', value: 0.50, color: 'bg-slate-700 hover:bg-slate-600 text-amber-300' },
+            { label: '10 sen', value: 0.10, color: 'bg-slate-700 hover:bg-slate-600 text-slate-300' },
+            { label: '5 sen', value: 0.05, color: 'bg-slate-800 hover:bg-slate-700 text-amber-400' },
+            { label: '1 sen', value: 0.01, color: 'bg-slate-800 hover:bg-slate-700 text-amber-200' }
+        ];
+
+        /* CUSTOMER TEMPLATES */
+        const CUSTOMER_AVATARS = [
+            { avatar: '👩‍💼', name: 'Puan Sarah' },
+            { avatar: '👨‍🌾', name: 'Pak Cik Samad' },
+            { avatar: '🧑‍🎓', name: 'Amir Pelajar' },
+            { avatar: '👵', name: 'Nenek Rokiah' },
+            { avatar: '🧔‍♂️', name: 'Encik Nizam' },
+            { avatar: '👩‍🍳', name: 'Cik Farah' }
+        ];
+
+        /* DOM ELEMENTS SELECTION */
+        const elHudLevel = document.getElementById('hud-level');
+        const elHudShiftProgress = document.getElementById('hud-shift-progress');
+        const elHudMoney = document.getElementById('hud-money');
+        const elHudSatisfaction = document.getElementById('hud-satisfaction');
+        
+        const elCustomerAvatar = document.getElementById('customer-avatar');
+        const elCustomerName = document.getElementById('customer-name');
+        const elCustomerDialog = document.getElementById('customer-dialog');
+        const elCustomerPayPref = document.getElementById('customer-pay-preference');
+        const elPatienceBar = document.getElementById('patience-bar');
+        const elBadgePatience = document.getElementById('badge-patience');
+
+        const elConveyorBelt = document.getElementById('conveyor-belt');
+        const elScannerZone = document.getElementById('scanner-zone');
+        const elScannerLaser = document.getElementById('scanner-laser');
+
+        const elScannedCount = document.getElementById('scanned-count');
+        const elTotalCount = document.getElementById('total-count');
+        const elPaymentBadge = document.getElementById('payment-status-badge');
+        const elBtnPayCash = document.getElementById('btn-pay-cash');
+        const elBtnPayCard = document.getElementById('btn-pay-card');
+
+        const elReceiptItemsList = document.getElementById('receipt-items-list');
+        const elReceiptSubtotal = document.getElementById('receipt-subtotal');
+        const elReceiptTax = document.getElementById('receipt-tax');
+        const elReceiptTotal = document.getElementById('receipt-total');
+        const elReceiptPaidInfo = document.getElementById('receipt-paid-info');
+        const elReceiptPaidLabel = document.getElementById('receipt-paid-label');
+        const elReceiptPaidVal = document.getElementById('receipt-paid-val');
+        const elReceiptChangeInfo = document.getElementById('receipt-change-info');
+        const elReceiptChangeVal = document.getElementById('receipt-change-val');
+
+        const elCardTerminalBox = document.getElementById('card-terminal-box');
+        const elCardStatusScreen = document.getElementById('card-status-screen');
+        const elBtnSwipeCard = document.getElementById('btn-swipe-card');
+
+        const elCashDrawerBox = document.getElementById('cash-drawer-box');
+        const elDrawerSelectedDisplay = document.getElementById('drawer-selected-display');
+        const elDrawerNeededDisplay = document.getElementById('drawer-needed-display');
+        const elCashDrawerGrid = document.getElementById('cash-drawer-grid');
+        const elBtnSubmitChange = document.getElementById('btn-submit-change');
+        const elBtnClearDrawer = document.getElementById('btn-clear-drawer');
+
+        const elModalShop = document.getElementById('modal-shop');
+        const elModalSummary = document.getElementById('modal-summary');
+
+        /* GAME STATE MANAGEMENT */
+        const gameState = {
+            level: 1,
+            playerMoney: 0.00,
+            satisfaction: 100,
+            customersInLevel: 3,
+            currentCustomerIndex: 0,
+            currentCustomer: null,
+            customerItems: [],
+            scannedItems: [],
+            paymentMode: null, // 'cash' or 'card'
+            cashGivenByCustomer: 0,
+            selectedChange: 0.00,
+            patienceTimer: null,
+            patienceMax: 100,
+            patienceCurrent: 100,
+            upgrades: {
+                autoScan: false,
+                extraPatience: false,
+                tipBooster: false
+            },
+            levelStats: {
+                customersServed: 0,
+                tipsEarned: 0,
+                accuracyHits: 0,
+                totalAccuracyChecks: 0,
+                cashTx: 0,
+                cardTx: 0
+            }
+        };
+
+        /* INITIALIZE GAME */
+        window.addEventListener('load', () => {
+            renderCashDrawerGrid();
+            bindEvents();
+            startLevel(1);
+        });
+
+        function bindEvents() {
+            // Sound Toggle
+            document.getElementById('btn-sound-toggle').addEventListener('click', () => {
+                sfx.enabled = !sfx.enabled;
+                document.getElementById('sound-icon').className = sfx.enabled ? 'fa-solid fa-volume-high' : 'fa-solid fa-volume-xmark';
+            });
+
+            // Shop Modal
+            document.getElementById('btn-open-shop').addEventListener('click', () => elModalShop.classList.remove('hidden'));
+            document.getElementById('btn-close-shop').addEventListener('click', () => elModalShop.classList.add('hidden'));
+            document.getElementById('btn-close-shop-2').addEventListener('click', () => elModalShop.classList.add('hidden'));
+
+            // Shop Upgrades
+            document.getElementById('buy-auto-scan').addEventListener('click', () => buyUpgrade('autoScan', 50.00, 'buy-auto-scan'));
+            document.getElementById('buy-extra-patience').addEventListener('click', () => buyUpgrade('extraPatience', 40.00, 'buy-extra-patience'));
+            document.getElementById('buy-tip-booster').addEventListener('click', () => buyUpgrade('tipBooster', 65.00, 'buy-tip-booster'));
+
+            // Clear Drawer
+            elBtnClearDrawer.addEventListener('click', () => {
+                gameState.selectedChange = 0.00;
+                updateDrawerUI();
+            });
+
+            // Submit Cash Change
+            elBtnSubmitChange.addEventListener('click', submitCashChange);
+
+            // Card Tap
+            elBtnSwipeCard.addEventListener('click', processCardPayment);
+
+            // Next Level Modal Button
+            document.getElementById('btn-next-level').addEventListener('click', () => {
+                elModalSummary.classList.add('hidden');
+                startLevel(gameState.level + 1);
+            });
+        }
+
+        function startLevel(lvl) {
+            gameState.level = lvl;
+            gameState.customersInLevel = 2 + lvl;
+            gameState.currentCustomerIndex = 0;
+            gameState.levelStats = {
+                customersServed: 0,
+                tipsEarned: 0,
+                accuracyHits: 0,
+                totalAccuracyChecks: 0,
+                cashTx: 0,
+                cardTx: 0
+            };
+            updateHUD();
+            nextCustomer();
+        }
+
+        function nextCustomer() {
+            if (gameState.currentCustomerIndex >= gameState.customersInLevel) {
+                showLevelSummary();
+                return;
+            }
+
+            const custTemplate = CUSTOMER_AVATARS[Math.floor(Math.random() * CUSTOMER_AVATARS.length)];
+            // Customer decides payment preference automatically
+            const customerPayChoice = Math.random() > 0.5 ? 'cash' : 'card';
+
+            gameState.currentCustomer = {
+                name: custTemplate.name + ` #${gameState.currentCustomerIndex + 1}`,
+                avatar: custTemplate.avatar,
+                payMethod: customerPayChoice
+            };
+
+            gameState.scannedItems = [];
+            gameState.paymentMode = null;
+            gameState.selectedChange = 0.00;
+
+            // Generate customer grocery items
+            const itemCount = 2 + Math.floor(Math.random() * (gameState.level + 2));
+            gameState.customerItems = [];
+            for (let i = 0; i < itemCount; i++) {
+                const randomItem = GROCERY_ITEMS[Math.floor(Math.random() * GROCERY_ITEMS.length)];
+                gameState.customerItems.push({ ...randomItem, instanceId: 'item_' + i + '_' + Date.now() });
+            }
+
+            // Update UI
+            elCustomerAvatar.textContent = gameState.currentCustomer.avatar;
+            elCustomerName.textContent = gameState.currentCustomer.name;
+            elCustomerDialog.textContent = `"Selamat sejahtera! Tolong imbas barang-barang ini."`;
+            elCustomerPayPref.classList.add('hidden');
+
+            elCardTerminalBox.classList.add('hidden');
+            elCashDrawerBox.classList.remove('hidden');
+
+            resetReceipt();
+            renderConveyorItems();
+            resetPatienceTimer();
+            updatePaymentButtonsState();
+            updateDrawerUI();
+
+            gameState.currentCustomerIndex++;
+            elHudShiftProgress.textContent = `Pelanggan ${gameState.currentCustomerIndex}/${gameState.customersInLevel}`;
+        }
+
+        function renderConveyorItems() {
+            elConveyorBelt.innerHTML = '';
+            elTotalCount.textContent = gameState.customerItems.length;
+            elScannedCount.textContent = gameState.scannedItems.length;
+
+            gameState.customerItems.forEach((item) => {
+                const isScanned = gameState.scannedItems.some(s => s.instanceId === item.instanceId);
+                if (!isScanned) {
+                    const itemElem = document.createElement('button');
+                    itemElem.className = 'flex-shrink-0 bg-slate-900 border border-slate-700 hover:border-indigo-400 p-2.5 rounded-xl flex flex-col items-center justify-center gap-1 hover:scale-105 transition active:scale-95 shadow-lg group';
+                    itemElem.innerHTML = `
+                        <span class="text-3xl group-hover:animate-bounce">${item.icon}</span>
+                        <span class="text-[10px] font-bold text-slate-300">${item.name}</span>
+                        <span class="text-[9px] text-emerald-400 font-bold">RM ${item.price.toFixed(2)}</span>
+                    `;
+                    itemElem.addEventListener('click', () => scanItem(item));
+                    elConveyorBelt.appendChild(itemElem);
+                }
+            });
+        }
+
+        function scanItem(item) {
+            if (gameState.scannedItems.some(s => s.instanceId === item.instanceId)) return;
+
+            sfx.playBeep();
+
+            // Laser Beam Visual effect
+            elScannerLaser.classList.add('laser-active');
+            setTimeout(() => elScannerLaser.classList.remove('laser-active'), 400);
+
+            gameState.scannedItems.push(item);
+            renderConveyorItems();
+            updateReceipt();
+
+            if (gameState.scannedItems.length === gameState.customerItems.length) {
+                onAllItemsScanned();
+            }
+        }
+
+        function updateReceipt() {
+            elReceiptItemsList.innerHTML = '';
+            let subtotal = 0;
+
+            gameState.scannedItems.forEach((item) => {
+                subtotal += item.price;
+                const row = document.createElement('div');
+                row.className = 'flex justify-between items-center text-slate-800';
+                row.innerHTML = `
+                    <span>${item.icon} ${item.name}</span>
+                    <span class="font-bold">RM ${item.price.toFixed(2)}</span>
+                `;
+                elReceiptItemsList.appendChild(row);
+            });
+
+            const tax = subtotal * 0.06;
+            const total = subtotal + tax;
+
+            elReceiptSubtotal.textContent = `RM ${subtotal.toFixed(2)}`;
+            elReceiptTax.textContent = `RM ${tax.toFixed(2)}`;
+            elReceiptTotal.textContent = `RM ${total.toFixed(2)}`;
+        }
+
+        function resetReceipt() {
+            elReceiptItemsList.innerHTML = `<div class="text-center text-slate-400 italic py-4">Sila imbas barang di atas kaunter...</div>`;
+            elReceiptSubtotal.textContent = 'RM 0.00';
+            elReceiptTax.textContent = 'RM 0.00';
+            elReceiptTotal.textContent = 'RM 0.00';
+            elReceiptPaidInfo.classList.add('hidden');
+        }
+
+        function getCalculatedTotal() {
+            const subtotal = gameState.scannedItems.reduce((sum, i) => sum + i.price, 0);
+            return subtotal + (subtotal * 0.06);
+        }
+
+        function onAllItemsScanned() {
+            const grandTotal = getCalculatedTotal();
+            const payMethod = gameState.currentCustomer.payMethod;
+
+            elCustomerPayPref.classList.remove('hidden');
+
+            if (payMethod === 'cash') {
+                gameState.paymentMode = 'cash';
+                elCustomerPayPref.className = "text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-emerald-950 text-emerald-400 border border-emerald-600";
+                elCustomerPayPref.innerHTML = `<i class="fa-solid fa-money-bill-wave mr-1"></i> Tunai`;
+
+                const possibleNotes = [10, 20, 50, 100];
+                let cashGiven = possibleNotes.find(n => n >= grandTotal) || (Math.ceil(grandTotal / 10) * 10);
+                if (cashGiven <= grandTotal) cashGiven += 10;
+                gameState.cashGivenByCustomer = cashGiven;
+
+                elCustomerDialog.textContent = `"Saya bayar guna TUNAI RM ${cashGiven.toFixed(2)}. Tolong berikan bakinya ya!"`;
+
+                elPaymentBadge.className = "px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 rounded-lg text-xs font-bold flex items-center gap-2 animate-pulse";
+                elPaymentBadge.innerHTML = `<i class="fa-solid fa-money-bill-wave"></i> Tunai Dihulur: RM ${cashGiven.toFixed(2)}`;
+
+                elBtnPayCash.classList.remove('opacity-40', 'cursor-not-allowed');
+                elBtnPayCash.classList.add('bg-emerald-600', 'text-white', 'border-emerald-500');
+                elBtnPayCard.classList.add('opacity-40', 'cursor-not-allowed');
+
+                elReceiptPaidLabel.textContent = "Tunai Diterima:";
+                elReceiptPaidVal.textContent = `RM ${cashGiven.toFixed(2)}`;
+                elReceiptPaidInfo.classList.remove('hidden');
+
+                elCardTerminalBox.classList.add('hidden');
+                elCashDrawerBox.classList.remove('hidden');
+
+            } else {
+                gameState.paymentMode = 'card';
+                elCustomerPayPref.className = "text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-indigo-950 text-indigo-300 border border-indigo-600";
+                elCustomerPayPref.innerHTML = `<i class="fa-solid fa-credit-card mr-1"></i> Kad Bank`;
+
+                elCustomerDialog.textContent = `"Saya nak bayar guna KAD BANK. Boleh saya tap kad di terminal?"`;
+
+                elPaymentBadge.className = "px-3 py-1.5 bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 rounded-lg text-xs font-bold flex items-center gap-2 animate-pulse";
+                elPaymentBadge.innerHTML = `<i class="fa-solid fa-credit-card"></i> Pembayaran Kad Bank`;
+
+                elBtnPayCard.classList.remove('opacity-40', 'cursor-not-allowed');
+                elBtnPayCard.classList.add('bg-indigo-600', 'text-white', 'border-indigo-500');
+                elBtnPayCash.classList.add('opacity-40', 'cursor-not-allowed');
+
+                elCardTerminalBox.classList.remove('hidden');
+                elCashDrawerBox.classList.add('hidden');
+                elCardStatusScreen.textContent = `JUMLAH: RM ${grandTotal.toFixed(2)} - SENTUH KAD`;
+            }
+
+            updateDrawerUI();
+        }
+
+        function updatePaymentButtonsState() {
+            elBtnPayCash.className = "opacity-40 cursor-not-allowed bg-slate-800 text-slate-400 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-2 border border-slate-700 transition";
+            elBtnPayCard.className = "opacity-40 cursor-not-allowed bg-slate-800 text-slate-400 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-2 border border-slate-700 transition";
+
+            elPaymentBadge.className = "px-3 py-1.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-lg text-xs font-bold flex items-center gap-2";
+            elPaymentBadge.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Mengimbas Barang...`;
+        }
+
+        function renderCashDrawerGrid() {
+            elCashDrawerGrid.innerHTML = '';
+            CASH_NOTES.forEach(note => {
+                const btn = document.createElement('button');
+                btn.className = `${note.color} text-white font-bold py-2 px-1 rounded-xl text-xs transition active:scale-95 shadow border border-white/10 flex flex-col items-center justify-center`;
+                btn.innerHTML = `<span>${note.label}</span>`;
+                btn.addEventListener('click', () => {
+                    if (gameState.paymentMode !== 'cash') return;
+                    gameState.selectedChange += note.value;
+                    updateDrawerUI();
+                });
+                elCashDrawerGrid.appendChild(btn);
+            });
+        }
+
+        function updateDrawerUI() {
+            elDrawerSelectedDisplay.textContent = `RM ${gameState.selectedChange.toFixed(2)}`;
+
+            if (gameState.paymentMode === 'cash') {
+                const grandTotal = getCalculatedTotal();
+                const neededChange = Math.max(0, gameState.cashGivenByCustomer - grandTotal);
+                elDrawerNeededDisplay.textContent = `RM ${neededChange.toFixed(2)}`;
+
+                elBtnSubmitChange.removeAttribute('disabled');
+                elBtnSubmitChange.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-slate-800');
+                elBtnSubmitChange.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
+            } else {
+                elDrawerNeededDisplay.textContent = `RM 0.00`;
+                elBtnSubmitChange.setAttribute('disabled', 'true');
+                elBtnSubmitChange.classList.add('opacity-50', 'cursor-not-allowed', 'bg-slate-800');
+                elBtnSubmitChange.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
+            }
+        }
+
+        function submitCashChange() {
+            if (gameState.paymentMode !== 'cash') return;
+
+            const grandTotal = getCalculatedTotal();
+            const expectedChange = parseFloat((gameState.cashGivenByCustomer - grandTotal).toFixed(2));
+            const playerChange = parseFloat(gameState.selectedChange.toFixed(2));
+
+            gameState.levelStats.totalAccuracyChecks++;
+
+            if (Math.abs(expectedChange - playerChange) < 0.009) {
+                sfx.playCashRegister();
+                gameState.levelStats.accuracyHits++;
+                gameState.levelStats.cashTx++;
+
+                let tipMultiplier = gameState.upgrades.tipBooster ? 1.5 : 1.0;
+                const tip = parseFloat(((gameState.patienceCurrent / 25) * tipMultiplier).toFixed(2));
+                const totalEarned = grandTotal + tip;
+
+                gameState.playerMoney += totalEarned;
+                gameState.levelStats.tipsEarned += tip;
+                gameState.levelStats.customersServed++;
+
+                elReceiptChangeVal.textContent = `RM ${playerChange.toFixed(2)}`;
+                elReceiptChangeInfo.classList.remove('hidden');
+
+                elCustomerDialog.textContent = `"Baki tepat! Terima kasih. (Tip: +RM ${tip.toFixed(2)})"`;
+                updateHUD();
+
+                setTimeout(() => nextCustomer(), 1500);
+            } else {
+                sfx.playError();
+                gameState.satisfaction = Math.max(0, gameState.satisfaction - 15);
+                updateHUD();
+
+                if (playerChange < expectedChange) {
+                    elCustomerDialog.textContent = `"Baki tidak cukup! Sepatutnya RM ${expectedChange.toFixed(2)}, tapi anda beri RM ${playerChange.toFixed(2)}."`;
+                } else {
+                    elCustomerDialog.textContent = `"Anda beri baki terlebih! Sepatutnya RM ${expectedChange.toFixed(2)} sahaja."`;
+                }
+            }
+        }
+
+        function processCardPayment() {
+            elCardStatusScreen.textContent = "MEMPROSES PEMBAYARAN...";
+            elCardStatusScreen.classList.add('animate-pulse');
+
+            setTimeout(() => {
+                sfx.playCashRegister();
+                elCardStatusScreen.textContent = "LULUS! TERIMA KASIH";
+                elCardStatusScreen.classList.remove('animate-pulse');
+
+                const grandTotal = getCalculatedTotal();
+                let tipMultiplier = gameState.upgrades.tipBooster ? 1.5 : 1.0;
+                const tip = parseFloat(((gameState.patienceCurrent / 30) * tipMultiplier).toFixed(2));
+
+                gameState.playerMoney += (grandTotal + tip);
+                gameState.levelStats.tipsEarned += tip;
+                gameState.levelStats.customersServed++;
+                gameState.levelStats.accuracyHits++;
+                gameState.levelStats.totalAccuracyChecks++;
+                gameState.levelStats.cardTx++;
+
+                elReceiptPaidLabel.textContent = "Bayaran Kad:";
+                elReceiptPaidVal.textContent = `RM ${grandTotal.toFixed(2)}`;
+                elReceiptPaidInfo.classList.remove('hidden');
+
+                updateHUD();
+
+                setTimeout(() => {
+                    elCardTerminalBox.classList.add('hidden');
+                    nextCustomer();
+                }, 1200);
+            }, 1000);
+        }
+
+        function resetPatienceTimer() {
+            if (gameState.patienceTimer) clearInterval(gameState.patienceTimer);
+
+            gameState.patienceMax = gameState.upgrades.extraPatience ? 140 : 100;
+            gameState.patienceCurrent = gameState.patienceMax;
+            updatePatienceBar();
+
+            gameState.patienceTimer = setInterval(() => {
+                gameState.patienceCurrent -= 2;
+                updatePatienceBar();
+
+                if (gameState.patienceCurrent <= 0) {
+                    clearInterval(gameState.patienceTimer);
+                    sfx.playError();
+                    gameState.satisfaction = Math.max(0, gameState.satisfaction - 20);
+                    elCustomerDialog.textContent = `"Lambat sangat! Saya tinggalkan barang-barang ini."`;
+                    updateHUD();
+                    setTimeout(() => nextCustomer(), 1600);
+                }
+            }, 1000);
+        }
+
+        function updatePatienceBar() {
+            const pct = Math.max(0, (gameState.patienceCurrent / gameState.patienceMax) * 100);
+            elPatienceBar.style.width = `${pct}%`;
+
+            if (pct > 60) {
+                elPatienceBar.className = "bg-emerald-400 h-full rounded-full transition-all duration-300";
+                elBadgePatience.className = "absolute -bottom-1 -right-1 bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded-full border border-slate-900 font-bold";
+                elBadgePatience.textContent = "Gembira";
+            } else if (pct > 30) {
+                elPatienceBar.className = "bg-amber-400 h-full rounded-full transition-all duration-300";
+                elBadgePatience.className = "absolute -bottom-1 -right-1 bg-amber-500 text-white text-[10px] px-2 py-0.5 rounded-full border border-slate-900 font-bold";
+                elBadgePatience.textContent = "Resah";
+            } else {
+                elPatienceBar.className = "bg-red-500 h-full rounded-full transition-all duration-300";
+                elBadgePatience.className = "absolute -bottom-1 -right-1 bg-red-600 text-white text-[10px] px-2 py-0.5 rounded-full border border-slate-900 font-bold";
+                elBadgePatience.textContent = "Marah";
+            }
+        }
+
+        function buyUpgrade(key, price, btnId) {
+            if (gameState.upgrades[key]) return;
+
+            if (gameState.playerMoney >= price) {
+                gameState.playerMoney -= price;
+                gameState.upgrades[key] = true;
+                updateHUD();
+
+                const btn = document.getElementById(btnId);
+                btn.textContent = "Dibeli ✓";
+                btn.className = "bg-slate-800 text-emerald-400 font-bold px-3 py-1.5 rounded-lg text-xs cursor-default";
+                
+                sfx.playCashRegister();
+            } else {
+                sfx.playError();
+            }
+        }
+
+        function updateHUD() {
+            elHudLevel.textContent = gameState.level;
+            elHudMoney.textContent = `RM ${gameState.playerMoney.toFixed(2)}`;
+            elHudSatisfaction.textContent = `${gameState.satisfaction}%`;
+        }
+
+        function showLevelSummary() {
+            if (gameState.patienceTimer) clearInterval(gameState.patienceTimer);
+            sfx.playCashRegister();
+
+            document.getElementById('summary-level-title').textContent = `Shift Tahap ${gameState.level} Selesai!`;
+            document.getElementById('summary-customers-served').textContent = gameState.levelStats.customersServed;
+
+            const accuracyPct = gameState.levelStats.totalAccuracyChecks > 0
+                ? Math.round((gameState.levelStats.accuracyHits / gameState.levelStats.totalAccuracyChecks) * 100)
+                : 100;
+
+            document.getElementById('summary-accuracy').textContent = `${accuracyPct}% (Tunai: ${gameState.levelStats.cashTx}, Kad: ${gameState.levelStats.cardTx})`;
+            document.getElementById('summary-tips').textContent = `RM ${gameState.levelStats.tipsEarned.toFixed(2)}`;
+            document.getElementById('summary-total-revenue').textContent = `RM ${gameState.playerMoney.toFixed(2)}`;
+
+            elModalSummary.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
